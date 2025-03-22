@@ -1,0 +1,162 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import fetch_california_housing
+
+def load_data():
+    '''Fetch the California Housing dataset and prepare the dataframe.'''
+    
+    # Fetch the California Housing dataset
+    data = fetch_california_housing()
+    # Create a dataframe with the dataset and add the target variable (median house value)
+    df = pd.DataFrame(data.data, columns=data.feature_names)
+    df['MedianHouseValue'] = data.target
+    return df
+
+def visualize_data(df):
+    '''Generate a scatter plot for MedInc vs. MedianHouseValue and print summary statistics.'''
+    
+    # Scatter plot for median income vs. median house value
+    plt.scatter(df['MedInc'], df['MedianHouseValue'], color='blue')
+    plt.xlabel('Median Income')
+    plt.ylabel('Median House Value')
+    plt.title('Income vs House Value')
+    plt.show()
+
+    # Print summary statistics for 'MedInc' and 'MedianHouseValue'
+    income_stats = df[['MedInc']].agg(['mean', 'median', 'std'])
+    house_value_stats = df[['MedianHouseValue']].agg(['mean', 'median', 'std'])
+
+    print("Median Income Stats:\n", income_stats)
+    print("Median House Value Stats:\n", house_value_stats)
+
+def prepare_data(df):
+    '''Split the dataset into training and testing sets.'''
+    
+    # Select the feature and target variable
+    X = df[['MedInc']].values
+    y = df['MedianHouseValue'].values.reshape(-1, 1)
+
+    # Split the data (80% train, 20% test)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Add bias term (1) to each feature vector
+    X_train = np.c_[np.ones((X_train.shape[0], 1)), X_train]
+    X_test = np.c_[np.ones((X_test.shape[0], 1)), X_test]
+
+    return X_train, X_test, y_train, y_test
+
+def compute_cost(theta, X, y):
+    '''Calculate the Mean Squared Error (MSE) for the given parameters.'''
+    
+    m = len(y)  # Number of data points
+    predictions = X.dot(theta)  # Predictions based on current theta
+    cost = (1 / (2 * m)) * np.sum(np.square(predictions - y))  # Cost function (MSE)
+    
+    return cost
+
+def gradient_descent(X, y, initial_theta, learning_rate=0.01, max_iters=1000, tolerance=0.0001):
+    '''Perform batch gradient descent to optimize the model.'''
+    
+    theta = initial_theta.copy()  # Initialize theta
+    m = len(y)  # Number of data points
+    cost_history = []  # Record the cost at each iteration
+
+    for i in range(max_iters):
+        predictions = X.dot(theta)  # Compute predictions
+        error = predictions - y  # Compute the error
+        gradient = (1 / m) * X.T.dot(error)  # Calculate the gradient
+        theta -= learning_rate * gradient  # Update the parameters
+
+        cost = compute_cost(theta, X, y)  # Calculate cost
+        cost_history.append(cost)
+
+        # Check for convergence
+        if len(cost_history) > 1 and abs(cost_history[-1] - cost_history[-2]) < tolerance:
+            break
+
+    return theta, cost_history
+
+def stochastic_gradient(X, y, initial_theta, learning_rate=0.01, iterations=1000):
+    '''Implement stochastic gradient descent for model optimization.'''
+    
+    m = len(y)  # Number of data points
+    theta = initial_theta.copy()  # Initialize theta
+    cost_history = np.zeros(iterations)  # To store the cost history
+
+    for i in range(iterations):
+        rand_index = np.random.randint(0, m)  # Randomly pick an index
+        X_sample = np.array([X[rand_index, :]]).reshape(1, -1)  # Sample feature
+        y_sample = np.array([y[rand_index, :]]).reshape(1, -1)  # Sample target value
+        
+        # Compute the gradient for this single point
+        gradient = X_sample.T.dot(X_sample.dot(theta) - y_sample)
+        
+        # Update theta using the gradient
+        theta -= learning_rate * gradient
+        
+        # Record the cost for this iteration
+        cost_history[i] = compute_cost(theta, X, y)
+
+    return theta, cost_history
+
+def predict(theta, new_data):
+    '''Make predictions using the trained model parameters.'''
+    
+    return new_data.dot(theta)
+
+def plot_results(X_test, y_test, theta):
+    '''Plot the regression line alongside test data points.'''
+    
+    plt.scatter(X_test[:, 1], y_test, color='blue', label='Test Data')
+
+    # Predict house values using the trained model
+    y_pred = X_test.dot(theta)
+    
+    # Plot the regression line
+    plt.plot(X_test[:, 1], y_pred, color='red', label='Regression Line')
+
+    plt.xlabel('Median Income')
+    plt.ylabel('Median House Value')
+    plt.title('Linear Regression: Predictions vs Actual')
+    plt.legend()
+    plt.show()
+
+def run_model(gradient_type='batch'):
+    '''Load the data, train the model, and make predictions using either batch or stochastic gradient descent.'''
+    
+    # Load and prepare the dataset
+    df = load_data()
+    visualize_data(df)
+    
+    # Split the data into train and test sets
+    X_train, X_test, y_train, y_test = prepare_data(df)
+
+    # Initialize the model parameters (theta)
+    initial_theta = np.zeros((X_train.shape[1], 1))
+
+    # Train the model using the selected gradient descent method
+    if gradient_type == 'batch':
+        theta, _ = gradient_descent(X_train, y_train, initial_theta)
+    elif gradient_type == 'sgd':
+        theta, _ = stochastic_gradient(X_train, y_train, initial_theta)
+    else:
+        print("Invalid method. Choose 'batch' or 'sgd'.")
+        return
+
+    # Make predictions using the trained model
+    predictions = X_test.dot(theta)
+
+    # Example prediction for a district with MedInc = 8.0
+    new_data = np.array([[1, 8.0]])  # Add the bias term
+    predicted_value = new_data.dot(theta)
+
+    print(f"Predictions for first 5 test samples:\n{predictions[:5]}")
+    print(f"Predicted house value for district with median income $80,000: {predicted_value[0]}")
+
+    # Visualize the results
+    plot_results(X_test, y_test, theta)
+
+# Choose 'batch' or 'sgd' to run the model
+run_model(gradient_type='batch')
